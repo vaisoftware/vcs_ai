@@ -72,7 +72,7 @@ api_catalog = [
         "descrizione": "Mostra i dettagli del finanziamento",
         "parametri": {"id_finanziamento": "string"},
         "path": "dettaglio-finanziamento",
-        "keywords": ["dettaglio", "dettagli", "vedi", "visualizza", "mostra", "info", "informazioni"]
+        "keywords": ["dettaglio", "dettagli", "vedi", "visualizza", "mostra", "info", "informazioni", "vai"]
     },
     {
         "descrizione": "Gestisci i dati della perizia",
@@ -137,8 +137,8 @@ def init_entity_ruler(nlp_obj):
     patterns = [
         # pattern che catturano vicino a parole chiave
         
-        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "finanziamento"}, {"IS_SPACE": True, "OP": "?"}, {"IS_DIGIT": True}]}, 
-        # rileva frasi come: “finanziamento 123456”
+        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": {"REGEX": "^fin.*"}}, {"IS_SPACE": True, "OP": "?"}, {"IS_DIGIT": True}]}
+        # rileva frasi come: “finanziamento 123456”, "fin: 123456”
         
         {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "id"}, {"LOWER": "finanziamento"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
         # rileva frasi come: “id finanziamento: 123456”, “id finanziamento: 123456”, “id finanziamento, 123456”
@@ -180,7 +180,7 @@ def extract_params_from_text(text: str, api_params: Dict[str, str]) -> Dict[str,
             text_digits = re.search(r"\d+", ent.text)
             if text_digits:
                 if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
-                    found["id_finanziamento"] = text_digits.group(0)
+                    found["id_finanziamento"] = text_digits.group(0).zfill(8)  # zfill per avere 8 cifre
                 elif ent.label_ == "ID_RATA" and "id_rata" in api_params:
                     found["id_rata"] = text_digits.group(0)
                 elif ent.label_ == "ID_ATTIVITA" and "id_attivita" in api_params:
@@ -275,9 +275,9 @@ def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embe
     try:
         testo_lower = testo_input.lower()
 
-        # Controllo lingua
+        """ # Controllo lingua
         if detect(testo_input) != "it":
-            return {"codice_risposta": "KO", "risposta_app": "Per favore fornisci il testo in italiano."}
+            return {"codice_risposta": "KO", "risposta_app": "Per favore fornisci il testo in italiano."} """
 
         # Embedding del testo utente
         embedding_input = model.encode([testo_input])
@@ -332,7 +332,7 @@ def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embe
                     response["avviso"] = "Parametri mancanti o incerti. Fornisci gli id richiesti."
             return response
 
-        return {"codice_risposta": "KO", "risposta_app": "La richiesta non trova corrispondenza con nessuna API."}
+        return {"codice_risposta": "KO", "risposta_app": "La richiesta non trova corrispondenza con nessuna API.", "score": round(migliori_match["score"], 4)}
 
     except Exception as e:
         return {"codice_risposta": "KO", "risposta_app": f"Errore durante l'elaborazione: {str(e)}"}
