@@ -1,6 +1,10 @@
-# Avviare il server
+# Locale
 # python -m uvicorn main:app --host 0.0.0.0 --port 8080
-# Ora l’API sarà disponibile su: http://localhost:8080/ai
+# http://localhost:8080/ai
+
+# Remoto
+# python -m uvicorn main:app --host 80.88.88.48 --port 11000
+# http://80.88.88.48:11000/ai
 
 # Libreria che consente la rappresentazione vettoriale (embedded) di frasi anziché parole
 from sentence_transformers import SentenceTransformer
@@ -8,30 +12,29 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 # Libreria per il rilevamento della lingua del testo
 from langdetect import detect
-# Libreria per l'elaborazione del linguaggio naturale
-import spacy
-# Libreria per creare esempi di addestramento
-from spacy.training.example import Example 
-# Libreria per mescolare i dati di addestramento
-import random 
-# Libreria per gestire i percorsi dei file
-from pathlib import Path 
-
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-import json
-import torch
-
 # Libreria per creare API web
 from fastapi import FastAPI
 # Libreria per la definizione di modelli di dati
 from pydantic import BaseModel
+# Libreria per tipi dinamici
+from typing import Dict, Any 
+# Libreria per le espressioni regolari
+import re 
+# Libreria per l'elaborazione del linguaggio naturale
+import spacy 
+# Componente spacy per il riconoscimento di entità basato su pattern
+from spacy.pipeline import EntityRuler 
+# Libreria per mescolare i dati di addestramento
+import random 
 """ # Libreria per connettersi a PostgreSQL
 import psycopg2 """
+
 # Inizializza l'app FastAPI
 app = FastAPI()
-# Definisce il modello di richiesta
-class Richiesta(BaseModel):
-    richiesta_utente: str
+
+# --- Modello sentence-transformers
+model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+
 """ # Funzione per caricare le API da un database PostgreSQL
 def carica_api_da_db():
     conn = psycopg2.connect(
@@ -41,97 +44,221 @@ def carica_api_da_db():
         password="PASSWORD"
     )
     cur = conn.cursor()
-    cur.execute("SELECT descrizione, endpoint FROM api_catalog")
+    cur.execute("SELECT descrizione, parametri, path FROM api_catalog")
     risultati = cur.fetchall()
     cur.close()
     conn.close()
-
-    api_catalog_db = [{"descrizione": r[0], "endpoint": r[1], "verbo": r[2]} for r in risultati]
+    api_catalog_db = [{"descrizione": r[0], "parametri": r[1], "path": r[2]} for r in risultati]
     return api_catalog_db
 
 # Carica le API dal database
 api_catalog = carica_api_da_db() """
 
-# Lista statica di API con descrizioni ed endpoint
+# ---- Lista statica di API con descrizioni, parametri ed endpoint
 api_catalog = [
-    # implementare la seguente api
-    {
-        "descrizione": "Crea un nuovo finanziamento con ndg, prodotto, data e convenzione",
-        "endpoint": "http://80.88.88.48:8080/accensione-finanziamento",
-        "verbo": "GET", # sarebbe una post, ma andrebbe modificato il backend
-        "parametri": {"ndg": "string", "prodotto": "string", "data": "string", "convenzione": "string"},
-    },
-    # api implementata, ma in corrispondenza dell'url http://80.88.88.48:8080/accensione-finanziamento/elaborazione-primaria
-    {
-        "descrizione": "Crea un nuovo finanziamento con ndg, prodotto, data, convenzione, importo e conto corrente",
-        "endpoint": "http://80.88.88.48:8080/accensione-finanziamento/elaborazione-primaria",
-        "verbo": "POST",
-        "parametri": {"ndg": "string", "prodotto": "string", "data": "string", "convenzione": "string", "importo": "string", "conto_corrente": "string"},
-    },
+    {"descrizione": "Mostra la home page dell'applicazione", "parametri": {}, "path": "home"},
+    {"descrizione": "Crea un nuovo finanziamento", "parametri": {}, "path": "nuovo-finanziamento"},
+    {"descrizione": "Mostra i dettagli del finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "dettaglio-finanziamento"},
+    {"descrizione": "Gestisci i dati della perizia", "parametri": {"id_finanziamento": "string"}, "path": "dati-perizia"},
+    {"descrizione": "Mostra i dettagli dell'attività", "parametri": {"id_finanziamento": "string", "id_attivita": "string"}, "path": "dettaglio-attivita"},
+    {"descrizione": "Mostra i dettagli della rata", "parametri": {"id_finanziamento": "string", "id_rata": "string"}, "path": "dettaglio-rata"},
+    {"descrizione": "Gestisci i finanziamenti", "parametri": {}, "path": "gestisci-finanziamenti"},
+    {"descrizione": "Stipula il finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "stipula-finanziamento"},
+    {"descrizione": "Eroga il finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "erogazione-finanziamento"},
 ]
 
-# Carica modello multilingua potente che comprende l'italiano
-model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+#  --- Modello spaCy per l'italiano ed EntityRuler
+try:
+    nlp = spacy.load("it_core_news_sm")
+except Exception:
+    # se non disponibile, crea un blank 'it' (meno performante ma funziona)
+    nlp = spacy.blank("it")
 
-""" # Setup del modello Hugging Face
-model_id = "m-polignano/ANITA-NEXT-24B-Dolphin-Mistral-UNCENSORED-ITA"
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-model = AutoModelForCausalLM.from_pretrained(model_id, device_map="auto", torch_dtype=torch.float16)
-generator = pipeline("text-generation", model=model, tokenizer=tokenizer) """
- 
-#def estrai_parametri_llm(testo_input, parametri_attesi): 
-    #prompt = f"""
-    #Estrai i seguenti parametri dal testo: {parametri_attesi}.
-    #Rispondi SOLO in JSON con i campi trovati.
-    #Testo: "{testo_input}"
-    #    """.strip()
-    #try:
-    #    output = generator(prompt, max_new_tokens=300, do_sample=False, temperature=0)[0]["generated_text"]
-    #    # Estrai solo la parte JSON dal testo generato
-    #    start = output.find("{")
-    #    end = output.rfind("}") + 1
-    #    json_text = output[start:end]
-    #    return json.loads(json_text)
-    #except Exception as e:
-    #    print("Errore nella decodifica:", e)
-    #    return {}
+def init_entity_ruler(nlp_obj):
+    """
+    Aggiunge un EntityRuler con pattern utili per riconoscere contesti tipo:
+    'finanziamento 12345', 'id finanziamento: 12345', 'id 12345', ecc.
+    """
+    # crea l'EntityRuler tramite la factory di spaCy
+    if "entity_ruler" not in nlp_obj.pipe_names:
+        ruler = nlp_obj.add_pipe(
+            "entity_ruler", 
+            config={"overwrite_ents": True}, 
+            first=True  # lo mette in testa al pipeline
+        )
+    else:
+        ruler = nlp_obj.get_pipe("entity_ruler")
+    patterns = [
+        # pattern che catturano vicino a parole chiave
+        
+        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "finanziamento"}, {"IS_SPACE": True, "OP": "?"}, {"IS_DIGIT": True}]}, 
+        # rileva frasi come: “finanziamento 123456”
+        
+        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "id"}, {"LOWER": "finanziamento"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
+        # rileva frasi come: “id finanziamento: 123456”, “id finanziamento: 123456”, “id finanziamento, 123456”
+        
+        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "id"}, {"IS_DIGIT": True}]},
+        # rileva frasi come: “id 123456”, “ID: 123456”
 
-def get_api(testo_input, soglia_similarita=0.5):
+        {"label": "ID_RATA", "pattern": [{"LOWER": "rata"}, {"IS_DIGIT": True}]},
+        {"label": "ID_RATA", "pattern": [{"LOWER": "id"}, {"LOWER": "rata"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
+        {"label": "ID_RATA", "pattern": [{"LOWER": "id"}, {"IS_DIGIT": True}]},
+        
+        {"label": "ID_ATTIVITA", "pattern": [{"LOWER": "attivita"}, {"IS_DIGIT": True}]},
+        {"label": "ID_ATTIVITA", "pattern": [{"LOWER": "id"}, {"LOWER": "attivita"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
+        {"label": "ID_ATTIVITA", "pattern": [{"LOWER": "id"}, {"IS_DIGIT": True}]},
+
+        # pattern semplici per numeri che seguono ':' o '=' o 'n.'
+        {"label": "NUMBER_GENERIC", "pattern": [{"IS_ASCII": True, "OP": "?"}, {"IS_DIGIT": True}]},
+
+        #TODO: aggiungere altri patterns specifici del tuo dominio
+    ]
+    ruler.add_patterns(patterns)
+
+init_entity_ruler(nlp)
+
+# --- Funzione per estrarre id basandosi su NER + regex come fallback
+def extract_params_from_text(text: str, api_params: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Restituisce un dict con i parametri trovati: {param_name: value}
+    Strategia:
+      1) usa nlp per trovare entità con label tipo ID_FINANZIAMENTO, ID_RATA, ...
+      2) se non trovi, cerca con regex numeriche vicino a parole chiave rilevanti
+      3) se ancora nulla, tenta un fallback: primo numero trovato (opzionale)
+    """
+    doc = nlp(text)
+    found = {}
+    # 1)
+    for ent in doc.ents:
+        if ent.label_ in ("ID_FINANZIAMENTO", "ID_RATA", "ID_ATTIVITA"):
+            text_digits = re.search(r"\d+", ent.text)
+            if text_digits:
+                if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
+                    found["id_finanziamento"] = text_digits.group(0)
+                elif ent.label_ == "ID_RATA" and "id_rata" in api_params:
+                    found["id_rata"] = text_digits.group(0)
+                elif ent.label_ == "ID_ATTIVITA" and "id_attivita" in api_params:
+                    found["id_attivita"] = text_digits.group(0)
+    # 2)
+    for pname in api_params:
+        if pname in found:
+            continue
+        # tentativi di trovare numero vicino a keyword del parametro
+        keyword = pname.replace("id_", "").replace("_", " ")
+        # es. cerca 'finanziamento 12345', 'id finanziamento 12345', 'finanziamento:12345'
+        pattern_context = rf"(?:{keyword})\D{{0,6}}?(\d{{3,20}})|(?:id\W*{keyword})\D{{0,6}}?(\d{{3,20}})"
+        m = re.search(pattern_context, text, flags=re.IGNORECASE)
+        if m:
+            num = m.group(1) or m.group(2)
+            if num:
+                found[pname] = num
+    """ # 3)
+    for pname in api_params:
+        if pname not in found:
+            m = re.search(r"(\d{3,20})", text)
+            if m:
+                found[pname] = m.group(1) """
+    return found
+
+# --- Funzione per (ri)allenare il modello NER su esempi etichettati
+def train_spacy_ner(base_model="it_core_news_sm", training_data=None, n_iter=30):
+    """
+    training_data: lista di (text, {"entities": [(start, end, label), ...]})
+    Esempio:
+      training_data = [
+        ("voglio fare la stipula del finanziamento 123456", {"entities": [(31, 37, "ID_FINANZIAMENTO")]}),
+        ...
+      ]
+    Nota: esegui questa funzione localmente per migliorare il riconoscimento.
+    """
+    if training_data is None or len(training_data) == 0:
+        raise ValueError("Serve training_data con esempi annotati")
+    # carica modello di base o blank
     try:
-        # Verifica che la lingua sia italiana
-        if detect(testo_input) != "it":
-            return "Per favore fornisci il testo in italiano."
+        nlp_train = spacy.load(base_model)
+    except Exception:
+        nlp_train = spacy.blank("it")
+    # controlla se il modello ha già un NER, altrimenti lo aggiunge
+    if "ner" not in nlp_train.pipe_names:
+        ner = nlp_train.add_pipe("ner", last=True)
+    else:
+        ner = nlp_train.get_pipe("ner")
+    # estrae tutte le label nuove presenti negli esempi di training
+    labels = set([ent[2] for _, ann in training_data for ent in ann.get("entities", [])])
+    # le aggiunge al NER, così il modello saprà che deve imparare a riconoscerle
+    for lbl in labels:
+        ner.add_label(lbl)
+    # disattiva temporaneamente tutti i componenti del pipeline tranne il NER, per addestrare solo il modello di riconoscimento entità senza aggiornare gli altri moduli
+    other_pipes = [p for p in nlp_train.pipe_names if p != "ner"]
+    with nlp_train.disable_pipes(*other_pipes):
+        # un optimizer è un oggetto che aggiorna i pesi del modello per minimizzare la funzione di perdita
+        optimizer = nlp_train.begin_training()
+        for itn in range(n_iter): # n_iter → numero di epoche
+            # mescola gli esempi ad ogni epoca, così il modello non si abitua all’ordine dei dati
+            random.shuffle(training_data)
+            losses = {}
+            # crea mini-batch dal training set, partendo da 4 esempi e aumentando gradualmente fino a 32
+            # (piccoli batch all’inizio per precisione → grandi batch alla fine per velocità, senza sacrificare la qualità dell’addestramento)
+            batches = spacy.util.minibatch(training_data, size=spacy.util.compounding(4.0, 32.0, 1.001))
+            # aggiornamento del modello
+            for batch in batches:
+                # separa dai batch di training i testi dalle annotazioni per poterli passare separatamente al modello NER
+                texts, annotations = zip(*batch)
+                # aggiorna il modello NER con i nuovi dati
+                nlp_train.update(texts, annotations, sgd=optimizer, drop=0.2, losses=losses)
+                # sgd → Stochastic Gradient Descent, algoritmo di ottimizzazione
+                # drop → tasso di dropout, cioè la probabilità di ignorare casualmente alcune unità durante l’addestramento per evitare overfitting
+                # losses → dizionario che tiene traccia delle perdite durante l'addestramento
+            # Opzionale: monitorare le perdite: print(itn, losses)
+    # salva modello su disco per riutilizzare
+    nlp_train.to_disk("./ner_finanziamenti_model")
+    return "./ner_finanziamenti_model"
 
-        # Calcola embedding del testo utente
+# --- Pydantic model per la richiesta
+class Richiesta(BaseModel):
+    richiesta_utente: str
+
+# --- Funzione principale che cerca l'API e, se necessario, estrae parametri
+def get_api(testo_input: str, soglia_similarita=0.5) -> Dict[str, Any]:
+    try:
+        # lingua
+        if detect(testo_input) != "it":
+            return {"codice_risposta": "KO", "risposta_app": "Per favore fornisci il testo in italiano."}
+
+        # embedding utente
         embedding_input = model.encode([testo_input])
 
-        migliori_match = {"endpoint": None, "score": 0.0, "parametri": {}}
+        migliori_match = {"path": None, "score": 0.0, "api": None}
 
-        # Confronta con le descrizioni delle API
         for api in api_catalog:
-            # Calcola embedding della descrizione dell'API
             embedding_descrizione = model.encode([api["descrizione"]])
-            # Calcola la similarità coseno tra l'input e la descrizione dell'API
             sim = cosine_similarity(embedding_input, embedding_descrizione)[0][0]
-
-            # Aggiorna il miglior match se la similarità è maggiore della soglia
             if sim > migliori_match["score"]:
-                migliori_match = {"endpoint": api["endpoint"], "score": sim, "parametri": api["parametri"]}
+                migliori_match = {"path": api["path"], "score": float(sim), "api": api}
 
-        # Controlla se il miglior match supera la soglia di similarità
         if migliori_match["score"] >= soglia_similarita:
-            # Estrai i parametri richiesti usando LLM
-            parametri_attesi = migliori_match["parametri"]
-            """ parametri_estratti = estrai_parametri_llm(testo_input, parametri_attesi)
-            migliori_match["parametri"] = parametri_estratti """
-            return f"{migliori_match['endpoint']}"
+            api = migliori_match["api"]
+            response = {"codice_risposta": "OK", "path": api["path"], "score": round(migliori_match["score"], 4)}
+
+            # se l'API richiede parametri, estraili
+            if api.get("parametri"):
+                estratti = extract_params_from_text(testo_input, api["parametri"])
+                # verifica che abbiamo tutti i parametri richiesti
+                mancanti = [p for p in api["parametri"].keys() if p not in estratti or not estratti[p]]
+                if len(mancanti) == 0:
+                    response["parametri"] = estratti
+                else:
+                    response["parametri_parziali"] = estratti
+                    response["mancanti"] = mancanti
+                    response["avviso"] = "Parametri mancanti o incerti. Fornisci gli id richiesti (es. 'id finanziamento 123456')."
+            return response
         else:
-            return "La richiesta non trova corrispondenza con nessuna API. Riprova."
+            return {"codice_risposta": "KO", "risposta_app": "La richiesta non trova corrispondenza con nessuna API. Riprova."}
 
     except Exception as e:
-        return f"Errore durante l'elaborazione: {str(e)}"
+        return {"codice_risposta": "KO", "risposta_app": f"Errore durante l'elaborazione: {str(e)}"}
 
-
+# --- Endpoint FastAPI
 @app.post("/ai")
 def get_api_endpoint(richiesta: Richiesta):
-    return {"endpoint": get_api(richiesta.richiesta_utente)}
+    return get_api(richiesta.richiesta_utente)
