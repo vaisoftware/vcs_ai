@@ -64,7 +64,9 @@ api_catalog = [
     {"descrizione": "Mostra i dettagli della rata", "parametri": {"id_finanziamento": "string", "id_rata": "string"}, "path": "dettaglio-rata"},
     {"descrizione": "Gestisci i finanziamenti", "parametri": {}, "path": "gestisci-finanziamenti"},
     {"descrizione": "Stipula il finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "stipula-finanziamento"},
+    {"descrizione": "Fai la stipula del finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "stipula-finanziamento"},
     {"descrizione": "Eroga il finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "erogazione-finanziamento"},
+    {"descrizione": "Fai l'erogazione del finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "erogazione-finanziamento"},
 ]
 
 #  --- Modello spaCy per l'italiano ed EntityRuler
