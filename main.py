@@ -56,18 +56,62 @@ api_catalog = carica_api_da_db() """
 
 # ---- Lista statica di API con descrizioni, parametri ed endpoint
 api_catalog = [
-    {"descrizione": "Mostra la home page dell'applicazione", "parametri": {}, "path": "home"},
-    {"descrizione": "Crea un nuovo finanziamento", "parametri": {}, "path": "nuovo-finanziamento"},
-    {"descrizione": "Mostra i dettagli del finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "dettaglio-finanziamento"},
-    {"descrizione": "Gestisci i dati della perizia", "parametri": {"id_finanziamento": "string"}, "path": "dati-perizia"},
-    {"descrizione": "Mostra i dettagli dell'attività", "parametri": {"id_finanziamento": "string", "id_attivita": "string"}, "path": "dettaglio-attivita"},
-    {"descrizione": "Mostra i dettagli della rata", "parametri": {"id_finanziamento": "string", "id_rata": "string"}, "path": "dettaglio-rata"},
-    {"descrizione": "Gestisci i finanziamenti", "parametri": {}, "path": "gestisci-finanziamenti"},
-    {"descrizione": "Stipula il finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "stipula-finanziamento"},
-    {"descrizione": "Fai la stipula del finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "stipula-finanziamento"},
-    {"descrizione": "Eroga il finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "erogazione-finanziamento"},
-    {"descrizione": "Fai l'erogazione del finanziamento", "parametri": {"id_finanziamento": "string"}, "path": "erogazione-finanziamento"},
+    {
+        "descrizione": "Mostra la home page dell'applicazione",
+        "parametri": {},
+        "path": "home",
+        "keywords": ["home", "inizio", "pagina principale", "dashboard", "schermata iniziale"]
+    },
+    {
+        "descrizione": "Crea un nuovo finanziamento",
+        "parametri": {},
+        "path": "nuovo-finanziamento",
+        "keywords": ["nuovo", "crea", "aggiungi", "apri", "attiva", "inserisci"]
+    },
+    {
+        "descrizione": "Mostra i dettagli del finanziamento",
+        "parametri": {"id_finanziamento": "string"},
+        "path": "dettaglio-finanziamento",
+        "keywords": ["dettaglio", "dettagli", "vedi", "visualizza", "mostra", "info", "informazioni"]
+    },
+    {
+        "descrizione": "Gestisci i dati della perizia",
+        "parametri": {"id_finanziamento": "string"},
+        "path": "dati-perizia",
+        "keywords": ["gestisci", "modifica", "aggiorna", "perizia", "dati", "informazioni perizia", "gestione perizia"]
+    },
+    {
+        "descrizione": "Mostra i dettagli dell'attività",
+        "parametri": {"id_finanziamento": "string", "id_attivita": "string"},
+        "path": "dettaglio-attivita",
+        "keywords": ["attività", "dettaglio", "vedi", "visualizza", "info attività", "informazioni attività"]
+    },
+    {
+        "descrizione": "Mostra i dettagli della rata",
+        "parametri": {"id_finanziamento": "string", "id_rata": "string"},
+        "path": "dettaglio-rata",
+        "keywords": ["rata", "dettaglio", "vedi", "mostra", "visualizza", "informazioni rata", "pagamento"]
+    },
+    {
+        "descrizione": "Gestisci i finanziamenti",
+        "parametri": {},
+        "path": "gestisci-finanziamenti",
+        "keywords": ["gestisci", "gestione", "amministra", "modifica", "controlla", "lista", "catalogo"]
+    },
+    {
+        "descrizione": "Stipula il finanziamento",
+        "parametri": {"id_finanziamento": "string"},
+        "path": "stipula-finanziamento",
+        "keywords": ["stipula", "firma", "contratto", "sottoscrivi", "attiva"]
+    },
+    {
+        "descrizione": "Eroga il finanziamento",
+        "parametri": {"id_finanziamento": "string"},
+        "path": "erogazione-finanziamento",
+        "keywords": ["eroga", "erogazione", "paga", "rilascia", "disponi", "invio"]
+    }
 ]
+
 
 #  --- Modello spaCy per l'italiano ed EntityRuler
 try:
@@ -221,41 +265,73 @@ class Richiesta(BaseModel):
     richiesta_utente: str
 
 # --- Funzione principale che cerca l'API e, se necessario, estrae parametri
-def get_api(testo_input: str, soglia_similarita=0.5) -> Dict[str, Any]:
+def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embedding=0.6) -> Dict[str, Any]:
+    """
+    Restituisce l'API più probabile in base a:
+    1) keyword specifiche nel testo
+    2) similarità embedding tra testo e descrizione API
+    3) estrazione parametri richiesti
+    """
     try:
-        # lingua
+        testo_lower = testo_input.lower()
+
+        # Controllo lingua
         if detect(testo_input) != "it":
             return {"codice_risposta": "KO", "risposta_app": "Per favore fornisci il testo in italiano."}
 
-        # embedding utente
+        # Embedding del testo utente
         embedding_input = model.encode([testo_input])
 
-        migliori_match = {"path": None, "score": 0.0, "api": None}
+        migliori_match = {"path": None, "score": 0.0, "api": None, "match_type": None}
 
         for api in api_catalog:
-            embedding_descrizione = model.encode([api["descrizione"]])
-            sim = cosine_similarity(embedding_input, embedding_descrizione)[0][0]
-            if sim > migliori_match["score"]:
-                migliori_match = {"path": api["path"], "score": float(sim), "api": api}
+            keywords = api.get("keywords", [])
+            # punteggio keyword
+            if keywords:
+                kw_score = sum(1 for kw in keywords if kw.lower() in testo_lower) / len(keywords) # esempio: se ci sono 5 keyword e 3 sono presenti nel testo, kw_score = 3/5 = 0.6
+                kw_bonus = max((len(kw) / 20 for kw in keywords if kw.lower() in testo_lower), default=0) # bonus per keyword più lunghe
+                kw_score += kw_bonus
+            else:
+                kw_score = 0.0
 
+            # punteggio embedding
+            embedding_descrizione = model.encode([api["descrizione"]])
+            emb_score = cosine_similarity(embedding_input, embedding_descrizione)[0][0]
+
+            # punteggio combinato
+            score_combinato = peso_keyword * kw_score + peso_embedding * emb_score
+
+            if score_combinato > migliori_match["score"]:
+                match_type = "keyword+embedding" if kw_score > 0 else "embedding"
+                migliori_match = {
+                    "path": api["path"],
+                    "score": float(score_combinato),
+                    "api": api,
+                    "match_type": match_type
+                }
+
+        # Se superiamo la soglia, estraiamo parametri
         if migliori_match["score"] >= soglia_similarita:
             api = migliori_match["api"]
-            response = {"codice_risposta": "OK", "path": api["path"], "score": round(migliori_match["score"], 4)}
+            response = {
+                "codice_risposta": "OK",
+                "path": api["path"],
+                "score": round(migliori_match["score"], 4),
+                "match_type": migliori_match["match_type"]
+            }
 
-            # se l'API richiede parametri, estraili
             if api.get("parametri"):
                 estratti = extract_params_from_text(testo_input, api["parametri"])
-                # verifica che abbiamo tutti i parametri richiesti
                 mancanti = [p for p in api["parametri"].keys() if p not in estratti or not estratti[p]]
                 if len(mancanti) == 0:
                     response["parametri"] = estratti
                 else:
                     response["parametri_parziali"] = estratti
                     response["mancanti"] = mancanti
-                    response["avviso"] = "Parametri mancanti o incerti. Fornisci gli id richiesti (es. 'id finanziamento 123456')."
+                    response["avviso"] = "Parametri mancanti o incerti. Fornisci gli id richiesti."
             return response
-        else:
-            return {"codice_risposta": "KO", "risposta_app": "La richiesta non trova corrispondenza con nessuna API. Riprova."}
+
+        return {"codice_risposta": "KO", "risposta_app": "La richiesta non trova corrispondenza con nessuna API."}
 
     except Exception as e:
         return {"codice_risposta": "KO", "risposta_app": f"Errore durante l'elaborazione: {str(e)}"}
