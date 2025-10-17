@@ -275,6 +275,8 @@ def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embe
     try:
         testo_lower = testo_input.lower()
 
+        print(testo_lower)
+
         """ # Controllo lingua
         if detect(testo_input) != "it":
             return {"codice_risposta": "KO", "risposta_app": "Per favore fornisci il testo in italiano."} """
