@@ -288,7 +288,8 @@ def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embe
             keywords = api.get("keywords", [])
             # punteggio keyword
             if keywords:
-                kw_score = sum(1 for kw in keywords if kw.lower() in testo_lower) / len(keywords) # esempio: se ci sono 5 keyword e 3 sono presenti nel testo, kw_score = 3/5 = 0.6
+                kw_score = 1.0 if any(kw.lower() in testo_lower for kw in keywords) else 0.0 # presenza/assenza
+                # kw_score = sum(1 for kw in keywords if kw.lower() in testo_lower) / len(keywords) # frazione di keyword trovate
                 kw_bonus = max((len(kw) / 20 for kw in keywords if kw.lower() in testo_lower), default=0) # bonus per keyword più lunghe
                 kw_score += kw_bonus
             else:
