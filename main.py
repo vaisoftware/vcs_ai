@@ -137,7 +137,7 @@ def init_entity_ruler(nlp_obj):
     patterns = [
         # pattern che catturano vicino a parole chiave
         
-        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": {"REGEX": "^fin.*"}}, {"IS_SPACE": True, "OP": "?"}, {"IS_DIGIT": True}]}
+        {"label": "ID_FINANZIAMENTO", "pattern": [{"TEXT": {"REGEX": "^fin.*"}}, {"IS_SPACE": True, "OP": "?"}, {"IS_DIGIT": True}]},
         # rileva frasi come: “finanziamento 123456”, "fin: 123456”
         
         {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "id"}, {"LOWER": "finanziamento"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
