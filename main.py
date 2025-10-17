@@ -177,24 +177,14 @@ def extract_params_from_text(text: str, api_params: Dict[str, str]) -> Dict[str,
     # 1)
     for ent in doc.ents:
         if ent.label_ in ("ID_FINANZIAMENTO", "ID_RATA", "ID_ATTIVITA"):
-            """ text_digits = re.search(r"\d+", ent.text)
-            if text_digits:
+            clean_text = re.sub(r'\D', '', ent.text)
+            if clean_text:
                 if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
-                    found["id_finanziamento"] = text_digits.group(0).zfill(8)  # zfill per avere 8 cifre
+                    found["id_finanziamento"] = clean_text.zfill(8)
                 elif ent.label_ == "ID_RATA" and "id_rata" in api_params:
-                    found["id_rata"] = text_digits.group(0)
+                    found["id_rata"] = clean_text
                 elif ent.label_ == "ID_ATTIVITA" and "id_attivita" in api_params:
-                    found["id_attivita"] = text_digits.group(0) """
-            numeri = re.findall(r"\d+", ent.text)
-            if numeri:
-                numero_concatenato = "".join(numeri)
-                if numero_concatenato:
-                    if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
-                        found["id_finanziamento"] = numero_concatenato.zfill(8)  # zfill per avere 8 cifre
-                    elif ent.label_ == "ID_RATA" and "id_rata" in api_params:
-                        found["id_rata"] = numero_concatenato
-                    elif ent.label_ == "ID_ATTIVITA" and "id_attivita" in api_params:
-                        found["id_attivita"] = numero_concatenato
+                    found["id_attivita"] = clean_text
     # 2)
     for pname in api_params:
         if pname in found:
