@@ -177,14 +177,19 @@ def extract_params_from_text(text: str, api_params: Dict[str, str]) -> Dict[str,
     # 1)
     for ent in doc.ents:
         if ent.label_ in ("ID_FINANZIAMENTO", "ID_RATA", "ID_ATTIVITA"):
-            text_digits = re.search(r"\d+", ent.text)
-            if text_digits:
-                if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
-                    found["id_finanziamento"] = text_digits.group(0).zfill(8)  # zfill per avere 8 cifre
-                elif ent.label_ == "ID_RATA" and "id_rata" in api_params:
-                    found["id_rata"] = text_digits.group(0)
-                elif ent.label_ == "ID_ATTIVITA" and "id_attivita" in api_params:
-                    found["id_attivita"] = text_digits.group(0)
+            
+            # text_digits = re.search(r"\d+", ent.text)
+            numeri = re.findall(r"\d+", ent.text)
+            if numeri:
+                numero_concatenato = "".join(numeri)
+
+                if text_digits:
+                    if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
+                        found["id_finanziamento"] = text_digits.group(0).zfill(8)  # zfill per avere 8 cifre
+                    elif ent.label_ == "ID_RATA" and "id_rata" in api_params:
+                        found["id_rata"] = text_digits.group(0)
+                    elif ent.label_ == "ID_ATTIVITA" and "id_attivita" in api_params:
+                        found["id_attivita"] = text_digits.group(0)
     # 2)
     for pname in api_params:
         if pname in found:
