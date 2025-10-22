@@ -129,6 +129,7 @@ def init_entity_ruler(nlp_obj):
     if "entity_ruler" not in nlp_obj.pipe_names:
         ruler = nlp_obj.add_pipe(
             "entity_ruler", 
+            before="ner", 
             config={"overwrite_ents": True}, 
             first=True  # lo mette in testa al pipeline
         )
@@ -148,6 +149,14 @@ def init_entity_ruler(nlp_obj):
                 {"IS_DIGIT": True, "OP": "?"}   # secondo numero (facoltativo)
             ]
         },    
+        {
+            "label": "ID_FINANZIAMENTO",
+            "pattern": [
+                {"LOWER": {"REGEX": "^fin"}},   # parola "finanziamento"
+                {"IS_SPACE": True, "OP": "*"},
+                {"TEXT": {"REGEX": r"^\d+([\-\.\/\s]\d+)*$"}}  # un numero, seguito da separatori opzionali tra cifre
+            ]
+        },
 
         {"label": "ID_RATA", "pattern": [{"TEXT": {"REGEX": "^rat.*"}}, {"IS_SPACE": True, "OP": "?"}, {"TEXT": {"REGEX": "^[0-9]+([\\s\\-\\./][0-9]+)*$"}}]},
         {"label": "ID_RATA", "pattern": [{"LOWER": "rata"}, {"IS_DIGIT": True}]},
