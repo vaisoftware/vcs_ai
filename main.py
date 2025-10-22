@@ -125,36 +125,49 @@ def init_entity_ruler(nlp_obj):
     Aggiunge un EntityRuler con pattern utili per riconoscere contesti tipo:
     'finanziamento 12345', 'id finanziamento: 12345', 'id 12345', ecc.
     """
-    # crea l'EntityRuler tramite la factory di spaCy
+    # Se esiste già un entity_ruler, riutilizzalo; altrimenti crealo
     if "entity_ruler" not in nlp_obj.pipe_names:
         ruler = nlp_obj.add_pipe(
-            "entity_ruler", 
-            before="ner", 
-            config={"overwrite_ents": True}, 
-            first=True  # lo mette in testa al pipeline
+            "entity_ruler",
+            before="ner",
+            config={"overwrite_ents": True}
         )
     else:
         ruler = nlp_obj.get_pipe("entity_ruler")
     patterns = [
-        # pattern che catturano vicino a parole chiave
-
+        # === PATTERN 1: caso tokenizzato ===
+        # es: "finanziamento 25-81", "fin 25 / 81"
         {
             "label": "ID_FINANZIAMENTO",
             "pattern": [
-                {"LOWER": {"REGEX": "^fin"}},  # "fin" o "finanziamento"
-                {"IS_SPACE": True, "OP": "*"}, # spazio opzionale
-                {"IS_DIGIT": True},  # primo numero
-                {"TEXT": {"REGEX": r"^[\-\./]$"}, "OP": "?"},  # opzionale separatore singolo
-                {"IS_SPACE": True, "OP": "?"},  # opzionale spazio
-                {"IS_DIGIT": True, "OP": "?"}   # secondo numero (facoltativo)
+                {"LOWER": {"REGEX": "^fin"}},       # "fin" o "finanziamento"
+                {"IS_SPACE": True, "OP": "*"},      # spazi opzionali
+                {"IS_DIGIT": True},                 # primo numero
+                {"TEXT": {"REGEX": r"^[\-\./]$"}, "OP": "?"},  # separatore opzionale
+                {"IS_SPACE": True, "OP": "?"},      # spazio opzionale
+                {"IS_DIGIT": True, "OP": "?"}       # secondo numero opzionale
             ]
-        },    
+        },
+        # === PATTERN 2: caso NON tokenizzato ===
+        # es: "finanziamento 25/81", "fin 25.81", "finanziamento 25-81"
         {
             "label": "ID_FINANZIAMENTO",
             "pattern": [
-                {"LOWER": {"REGEX": "^fin"}},   # parola "finanziamento"
+                {"LOWER": {"REGEX": "^fin"}},       # "fin" o "finanziamento"
                 {"IS_SPACE": True, "OP": "*"},
-                {"TEXT": {"REGEX": r"^\d+([\-\.\/\s]\d+)*$"}}  # un numero, seguito da separatori opzionali tra cifre
+                {"TEXT": {"REGEX": r"^\d+(?:[\-\./\s]?\d+)*$"}}  # numeri concatenati o con separatori
+            ]
+        },
+        # === (Facoltativo) pattern per "id finanziamento" ===
+        {
+            "label": "ID_FINANZIAMENTO",
+            "pattern": [
+                {"LOWER": "id"},
+                {"IS_SPACE": True, "OP": "*"},
+                {"LOWER": {"REGEX": "^fin"}},
+                {"IS_PUNCT": True, "OP": "?"},
+                {"IS_SPACE": True, "OP": "*"},
+                {"TEXT": {"REGEX": r"^\d+(?:[\-\./\s]?\d+)*$"}}
             ]
         },
 
