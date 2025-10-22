@@ -177,7 +177,7 @@ def extract_params_from_text(text: str, api_params: Dict[str, str]) -> Dict[str,
     # 1)
     for ent in doc.ents:
         if ent.label_ in ("ID_FINANZIAMENTO", "ID_RATA", "ID_ATTIVITA"):
-            clean_text = re.sub(r'\D', '', ent.text)
+            clean_text = re.sub(r'\D+', '', ent.text)
             if clean_text:
                 if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
                     found["id_finanziamento"] = clean_text.zfill(8)
