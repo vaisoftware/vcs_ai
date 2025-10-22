@@ -140,6 +140,9 @@ def init_entity_ruler(nlp_obj):
         {"label": "ID_FINANZIAMENTO", "pattern": [{"TEXT": {"REGEX": "^fin.*"}}, {"IS_SPACE": True, "OP": "?"}, {"TEXT": {"REGEX": "^[0-9]+([\\s\\-\\./][0-9]+)*$"}}]},
         # rileva frasi come: “finanziamento 123 456”, “finanziamento 123-456”, “finanziamento 123.456”, “finanziamento 123/456”, "fin 123456”
         
+        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "finanziamento"}, {"IS_DIGIT": True}]},
+        # rileva frasi come: “finanziamento 123456”
+
         {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "id"}, {"LOWER": "finanziamento"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
         # rileva frasi come: “id finanziamento: 123456”
         
@@ -179,6 +182,7 @@ def extract_params_from_text(text: str, api_params: Dict[str, str]) -> Dict[str,
     # 1)
     for ent in doc.ents:
         if ent.label_ in ("ID_FINANZIAMENTO", "ID_RATA", "ID_ATTIVITA"):
+            print(f"Trovata entità: {ent.text} con label {ent.label_}")
             clean_text = re.sub(r'\D+', '', ent.text)
             if clean_text:
                 if ent.label_ == "ID_FINANZIAMENTO" and "id_finanziamento" in api_params:
