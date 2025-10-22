@@ -137,17 +137,17 @@ def init_entity_ruler(nlp_obj):
     patterns = [
         # pattern che catturano vicino a parole chiave
 
-        {"label": "ID_FINANZIAMENTO", "pattern": [{"TEXT": {"REGEX": "^fin.*"}}, {"IS_SPACE": True, "OP": "?"}, {"TEXT": {"REGEX": "^[0-9]+([\\s\\-\\./][0-9]+)*$"}}]},
-        # rileva frasi come: “finanziamento 123 456”, “finanziamento 123-456”, “finanziamento 123.456”, “finanziamento 123/456”, "fin 123456”
-        
-        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "finanziamento"}, {"IS_DIGIT": True}]},
-        # rileva frasi come: “finanziamento 123456”
-
-        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "id"}, {"LOWER": "finanziamento"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
-        # rileva frasi come: “id finanziamento: 123456”
-        
-        {"label": "ID_FINANZIAMENTO", "pattern": [{"LOWER": "id"}, {"IS_DIGIT": True}]},
-        # rileva frasi come: “id 123456”, “ID: 123456”
+        {
+            "label": "ID_FINANZIAMENTO",
+            "pattern": [
+                {"LOWER": {"REGEX": "^fin"}},  # "fin" o "finanziamento"
+                {"IS_SPACE": True, "OP": "*"}, # spazio opzionale
+                {"IS_DIGIT": True},  # primo numero
+                {"TEXT": {"REGEX": r"^[\-\./]$"}, "OP": "?"},  # opzionale separatore singolo
+                {"IS_SPACE": True, "OP": "?"},  # opzionale spazio
+                {"IS_DIGIT": True, "OP": "?"}   # secondo numero (facoltativo)
+            ]
+        },    
 
         {"label": "ID_RATA", "pattern": [{"TEXT": {"REGEX": "^rat.*"}}, {"IS_SPACE": True, "OP": "?"}, {"TEXT": {"REGEX": "^[0-9]+([\\s\\-\\./][0-9]+)*$"}}]},
         {"label": "ID_RATA", "pattern": [{"LOWER": "rata"}, {"IS_DIGIT": True}]},
