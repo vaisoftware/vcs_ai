@@ -290,10 +290,11 @@ def train_spacy_ner(base_model="it_core_news_sm", training_data=None, n_iter=30)
 
 # --- Pydantic model per la richiesta
 class Richiesta(BaseModel):
-    richiesta_utente: str
+    richiesta_utente: str,
+    id_finanziamento: str,
 
 # --- Funzione principale che cerca l'API e, se necessario, estrae parametri
-def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embedding=0.6) -> Dict[str, Any]:
+def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyword=0.4, peso_embedding=0.6) -> Dict[str, Any]:
     """
     Restituisce l'API più probabile in base a:
     1) keyword specifiche nel testo
@@ -357,9 +358,14 @@ def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embe
                 if len(mancanti) == 0:
                     response["parametri"] = estratti
                 else:
-                    response["parametri_parziali"] = estratti
-                    response["mancanti"] = mancanti
-                    response["avviso"] = "Parametri mancanti o incerti. Fornisci gli id richiesti."
+                    #TODO: gestione specifica per id_finanziamento passato separatamente
+                    if "id_finanziamento" in mancanti and id_finanziamento:
+                        estratti["id_finanziamento"] = id_finanziamento
+                        mancanti.remove("id_finanziamento")
+                    else:
+                        response["parametri_parziali"] = estratti
+                        response["mancanti"] = mancanti
+                        response["avviso"] = "Parametri mancanti o incerti. Fornisci gli id richiesti."
             return response
 
         return {"codice_risposta": "KO", "risposta_app": "La richiesta non trova corrispondenza con nessuna API.", "score": round(migliori_match["score"], 4)}
@@ -370,4 +376,4 @@ def get_api(testo_input: str, soglia_similarita=0.5, peso_keyword=0.4, peso_embe
 # --- Endpoint FastAPI
 @app.post("/ai")
 def get_api_endpoint(richiesta: Richiesta):
-    return get_api(richiesta.richiesta_utente)
+    return get_api(richiesta.richiesta_utente, richiesta.id_finanziamento)
