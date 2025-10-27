@@ -127,11 +127,10 @@ def init_entity_ruler(nlp_obj):
     """
     # Se esiste già un entity_ruler, riutilizzalo; altrimenti crealo
     if "entity_ruler" not in nlp_obj.pipe_names:
-        ruler = nlp_obj.add_pipe(
-            "entity_ruler",
-            before="ner",
-            config={"overwrite_ents": True}
-        )
+        if "ner" in nlp_obj.pipe_names:
+            ruler = nlp_obj.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
+        else:
+            ruler = nlp_obj.add_pipe("entity_ruler", config={"overwrite_ents": True})
     else:
         ruler = nlp_obj.get_pipe("entity_ruler")
     patterns = [
@@ -290,8 +289,8 @@ def train_spacy_ner(base_model="it_core_news_sm", training_data=None, n_iter=30)
 
 # --- Pydantic model per la richiesta
 class Richiesta(BaseModel):
-    richiesta_utente: str,
-    id_finanziamento: str,
+    richiesta_utente: str
+    id_finanziamento: str
 
 # --- Funzione principale che cerca l'API e, se necessario, estrae parametri
 def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyword=0.4, peso_embedding=0.6) -> Dict[str, Any]:
