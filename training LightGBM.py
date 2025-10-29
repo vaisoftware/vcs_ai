@@ -282,7 +282,8 @@ df, df_processed, X_train, y_train, X_test, y_test = data_processing_for_a_binar
                                       anova_flag, outliers_flag, test_size, balanced_strategy, rfecv_flag, scaler)
 
 # LightGBM Model
-train_data = lgb.Dataset(X_train, label=y_train)
+feature_columns = [col for col in df_processed.columns.tolist() if col != target]
+train_data = lgb.Dataset(X_train, label=y_train, feature_name=feature_columns)
 test_data = lgb.Dataset(X_test, label=y_test, reference=train_data)
 params = {
     'objective': 'binary',

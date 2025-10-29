@@ -16,6 +16,8 @@ import lightgbm as lgb
 from fastapi import FastAPI
 # Libreria per la definizione di modelli di dati
 from pydantic import BaseModel
+# Libreria per l'interpretabilità dei modelli
+import shap
 
 # Inizializza l'app FastAPI
 app = FastAPI()
@@ -26,6 +28,7 @@ class Input(BaseModel):
     term: int
     int_rate: float
     zip_code: str
+    features_selected: list = []
 
 province_cap = {
     "AG": "921", "AL": "150", "AN": "600", "AO": "110", "AR": "521", "AP": "631", "AT": "141", "AV": "831",
@@ -45,7 +48,9 @@ province_cap = {
 }
 
 def preprocess_input(input_data):
-    input_df = pd.DataFrame([input_data.dict()])
+    input_dict = input_data.dict()
+    features_selected = input_dict.pop('features_selected', [])
+    input_df = pd.DataFrame([input_dict])
     input_df['zip_code'] = input_df['zip_code'].map(province_cap)
     purpose_features = ['purpose_credit_card', 'purpose_debt_consolidation', 'purpose_educational', 'purpose_home_improvement',
                         'purpose_house', 'purpose_major_purchase', 'purpose_medical', 'purpose_moving', 'purpose_other',
@@ -59,13 +64,48 @@ def preprocess_input(input_data):
     # 0 I fondi vengono accreditati direttamente al richiedente (prestito personale classico)
     # 1 I fondi vengono inviati direttamente ai creditori per estinguere debiti esistenti (tipico nei debt consolidation loan)
     scaler = MinMaxScaler()
-    input_df = scaler.fit_transform(input_df)
-    return input_df
+    input_scaled  = scaler.fit_transform(input_df)
+    input_scaled_df = pd.DataFrame(input_scaled , columns=input_df.columns)
+    return input_scaled, input_scaled_df, features_selected
+
+def get_features_importance():
+    model = lgb.Booster(model_file='lgbm_model.txt')
+    importance = model.feature_importance(importance_type='gain') 
+    # importance_type = 'split' o 'gain'. 
+    # con split di interpreta quante volte una feature è stata usata per fare uno split
+    # con gain quanto ha contribuito in termini di riduzione della loss
+    feature_names = model.feature_name()
+    feature_importance_dict = dict(zip(feature_names, importance))
+    return feature_importance_dict
+
+def get_xai(input_scaled_df):
+    model = lgb.Booster(model_file='lgbm_model.txt')
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(input_scaled_df)
+    return shap_values
 
 @app.post("/valutazione_merito_creditizio")
 def get_prob(richiesta: Input):
     model = lgb.Booster(model_file='lgbm_model.txt')
-    input = preprocess_input(richiesta)
-    predictions = model.predict(input)
+    input_scaled, input_scaled_df, features_selected = preprocess_input(richiesta)
+    predictions = model.predict(input_scaled)
     prob = predictions[0] * 100
-    return {"prob": prob}
+    shap_values = get_xai(input_scaled_df)
+    if not isinstance(shap_values, list):
+        shap_values = shap_values.tolist()[0]
+    else:
+        shap_values = shap_values[0].tolist()[0]
+    shap_dict = dict(zip(input_scaled_df.columns, shap_values))
+    feature_importance = get_features_importance()
+    shap_dict_filtered = {k: v for k, v in shap_dict.items() if k in feature_importance}
+    shap_dict_sorted = dict(
+        sorted(
+            shap_dict_filtered.items(),
+            key=lambda item: feature_importance[item[0]],
+            reverse=True
+        )
+    )
+    if len(features_selected) > 0:
+        shap_dict_sorted = {k: v for k, v in shap_dict_sorted.items() if k in features_selected}
+        feature_importance = {k: v for k, v in feature_importance.items() if k in features_selected}
+    return {"prob": prob, "shap_values": shap_dict_sorted, "feature_importance": feature_importance}
