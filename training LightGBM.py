@@ -232,7 +232,9 @@ def rfecv(rfecv_flag, X_train, y_train, X_test):
     return X_train[columns], X_test[columns]
 
 def normalize_data(scaler, X_train, X_test):
+    from joblib import dump
     X_train = scaler.fit_transform(X_train)
+    dump(scaler, 'scaler.pkl')
     X_test = scaler.transform(X_test)
     return X_train, X_test
 
