@@ -56,9 +56,9 @@ def get_dataset_for_a_binary_task(path, target, value_1, value_0, initial_featur
                                       strategy_to_convert_nan, strategy_to_convert_nan_to_numerical, strategy_to_convert_nan_to_categorical):
     dataset = pd.read_csv(path)
     dataset = dataset[initial_features]
-    dataset_with_only_binary_class = dataset[(dataset[target] == value_1) | (dataset[target] == value_0)]
+    dataset_with_only_binary_class = dataset[(dataset[target] == value_1) | (dataset[target] == value_0)] 
     dataset_after_features_selection = dataset_with_only_binary_class.drop(features_to_drop, axis=1)
-    dataset_without_feature_with_nan = dataset_after_features_selection.dropna(thresh=missing_data_percentage_accepted*len(dataset_after_features_selection), axis=1)
+    dataset_without_feature_with_nan = dataset_after_features_selection.dropna(thresh=missing_data_percentage_accepted*len(dataset_after_features_selection), axis=1) 
     dataset_without_numeric_features_most_correlates = drop_features_most_correlated(dataset_without_feature_with_nan, correlation_percentage_accepted, target, value_1, value_0)
     dataset_without_records_with_nan = manage_nan(dataset_without_numeric_features_most_correlates, strategy_to_convert_nan, strategy_to_convert_nan_to_numerical, strategy_to_convert_nan_to_categorical)
     return dataset_without_records_with_nan
@@ -93,7 +93,7 @@ def manage_nan(df, strategy_to_convert_nan, strategy_to_convert_nan_to_numerical
         mice_imputer = IterativeImputer()
         for col in df.columns[df.isnull().any()]:
             df[col] = mice_imputer.fit_transform(df[[col]])
-            return df
+        return df
     numeric_imputer = SimpleImputer(strategy=strategy_to_convert_nan_to_numerical)
     numeric_dataset = df.select_dtypes(include=[np.number])
     numeric_dataset_imputed = numeric_imputer.fit_transform(numeric_dataset)
