@@ -72,7 +72,7 @@ api_catalog = [
         "descrizione": "Mostra i dettagli del finanziamento",
         "parametri": {"id_finanziamento": "string"},
         "path": "dettaglio-finanziamento",
-        "keywords": ["dettaglio", "dettagli", "vedi", "visualizza", "mostra", "info", "informazioni", "vai"]
+        "keywords": ["dettaglio", "dettagli", "vedi", "visualizza", "mostra", "info", "informazioni", "vai", "finanziamento"]
     },
     {
         "descrizione": "Gestisci i dati della perizia",
@@ -293,7 +293,7 @@ class Richiesta(BaseModel):
     id_finanziamento: str
 
 # --- Funzione principale che cerca l'API e, se necessario, estrae parametri
-def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyword=0.4, peso_embedding=0.6) -> Dict[str, Any]:
+def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyword=0.1, peso_embedding=0.9) -> Dict[str, Any]:
     """
     Restituisce l'API più probabile in base a:
     1) keyword specifiche nel testo
