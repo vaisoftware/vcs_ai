@@ -73,49 +73,51 @@ api_catalog = [
         "descrizione": "Crea un nuovo finanziamento",
         "parametri": {},
         "path": "nuovo-finanziamento",
-        "keywords": ["nuovo", "crea", "aggiungi", "apri", "attiva", "inserisci"]
+        "keywords": ["nuovo", "creare", "aggiungere", "aprire", "attivare", "inserire", "avviare"]
     },
     {
-        "descrizione": "Mostra i dettagli del finanziamento",
+        "descrizione": "Dettagli del finanziamento",
         "parametri": {"id_finanziamento": "string"},
         "path": "dettaglio-finanziamento",
-        "keywords": ["dettaglio", "dettagli", "vedi", "visualizza", "mostra", "info", "informazioni", "vai", "finanziamento"]
+        "keywords": ["dettaglio", "dettagli", "info", "informazioni", "vedere", "visualizzare", "mostrare", "informare", "andare"]
     },
     {
         "descrizione": "Gestisci i dati della perizia",
         "parametri": {"id_finanziamento": "string"},
         "path": "dati-perizia",
-        "keywords": ["gestisci", "modifica", "aggiorna", "perizia", "dati", "informazioni perizia", "gestione perizia"]
+        "keywords": ["perizia"]
     },
     {
-        "descrizione": "Mostra i dettagli dell'attività",
+        "descrizione": "Dettagli dell'attività",
         "parametri": {"id_finanziamento": "string", "id_attivita": "string"},
         "path": "dettaglio-attivita",
-        "keywords": ["attività", "dettaglio", "vedi", "visualizza", "info attività", "informazioni attività"]
+        "keywords": ["attività", "task"]
     },
     {
-        "descrizione": "Mostra i dettagli della rata",
+        "descrizione": "Dettagli della rata",
         "parametri": {"id_finanziamento": "string", "id_rata": "string"},
         "path": "dettaglio-rata",
-        "keywords": ["rata", "dettaglio", "vedi", "mostra", "visualizza", "informazioni rata", "pagamento"]
+        "keywords": ["rata"]
     },
     {
         "descrizione": "Gestisci i finanziamenti",
         "parametri": {},
         "path": "gestisci-finanziamenti",
-        "keywords": ["gestisci", "gestione", "amministra", "modifica", "controlla", "lista", "catalogo"]
+        "keywords": ["gestione", "lista", "finanziamenti", "elenco"] 
+        #la keyword "finanziamenti" non verrà mai presa perché nella normalizzazione viene rimosso il plurale
+        #mettere il singolare "finanziamento" è troppo generico e porta a falsi positivi
     },
     {
         "descrizione": "Stipula il finanziamento",
         "parametri": {"id_finanziamento": "string"},
         "path": "stipula-finanziamento",
-        "keywords": ["stipula", "firma", "contratto", "sottoscrivi", "attiva"]
+        "keywords": ["stipula", "stipulare", "firma", "contratto", "sottoscrivere", "firmare"]
     },
     {
         "descrizione": "Eroga il finanziamento",
         "parametri": {"id_finanziamento": "string"},
         "path": "erogazione-finanziamento",
-        "keywords": ["eroga", "erogazione", "paga", "rilascia", "disponi", "invio"]
+        "keywords": ["eroga", "erogazione", "erogare"]
     }
 ]
 
@@ -176,6 +178,26 @@ def init_entity_ruler(nlp_obj):
             ]
         },
 
+        # === Pattern 3: "stipula" o "eroga" seguiti da un numero ===
+        {
+            "label": "ID_FINANZIAMENTO",
+            "pattern": [
+                {"LOWER": {"REGEX": "^(stipula|eroga)$"}},  # "stipula" o "eroga"
+                {"IS_SPACE": True, "OP": "*"},              # spazi opzionali
+                {"IS_DIGIT": True}                          # numero
+            ]
+        },
+
+        # === Pattern 4: "stipula" o "eroga" seguiti da numeri con separatori ===
+        {
+            "label": "ID_FINANZIAMENTO",
+            "pattern": [
+                {"LOWER": {"REGEX": "^(stipula|eroga)$"}},  # "stipula" o "eroga"
+                {"IS_SPACE": True, "OP": "*"},              # spazi opzionali
+                {"TEXT": {"REGEX": r"^\d+(?:[\-\./\s]?\d+)*$"}}  # numeri concatenati o con separatori
+            ]
+        },
+
         {"label": "ID_RATA", "pattern": [{"TEXT": {"REGEX": "^rat.*"}}, {"IS_SPACE": True, "OP": "?"}, {"TEXT": {"REGEX": "^[0-9]+([\\s\\-\\./][0-9]+)*$"}}]},
         {"label": "ID_RATA", "pattern": [{"LOWER": "rata"}, {"IS_DIGIT": True}]},
         {"label": "ID_RATA", "pattern": [{"LOWER": "id"}, {"LOWER": "rata"}, {"IS_PUNCT": True, "OP": "?"}, {"IS_DIGIT": True}]},
@@ -218,25 +240,41 @@ def extract_params_from_text(text: str, api_params: Dict[str, str]) -> Dict[str,
                     found["id_rata"] = clean_text
                 elif ent.label_ == "ID_ATTIVITA" and "id_attivita" in api_params:
                     found["id_attivita"] = clean_text
-    # 2)
+    if all(p in found for p in api_params):
+        return found
+    # 2A) cerca pattern specifici "stipula/eroga/fin <numero>"
+    text_low = text.lower()
+    m = re.search(r"\b(stipula|eroga|fin|finanziamento)\b[\s\:\-]*([0-9]+(?:[\/\-\.\s][0-9]+)*)", text_low)
+    if m:
+        verb = m.group(1)
+        num = re.sub(r'\D+', '', m.group(2))
+        if num:
+            if "id_finanziamento" in api_params and "id_finanziamento" not in found:
+                found["id_finanziamento"] = num.zfill(8)
+            # possibile estensione: mappare ad altri parametri in base al verbo
+    # 2B) cerca pattern generici "id <parametro> <numero>"
     for pname in api_params:
         if pname in found:
             continue
-        # tentativi di trovare numero vicino a keyword del parametro
         keyword = pname.replace("id_", "").replace("_", " ")
-        # es. cerca 'finanziamento 12345', 'id finanziamento 12345', 'finanziamento:12345'
-        pattern_context = rf"(?:{keyword})\D{{0,6}}?(\d{{3,20}})|(?:id\W*{keyword})\D{{0,6}}?(\d{{3,20}})"
-        m = re.search(pattern_context, text, flags=re.IGNORECASE)
-        if m:
-            num = m.group(1) or m.group(2)
+        pattern_context = rf"(?:{keyword})\W{{0,6}}?(\d{{1,20}})|(?:id\W*{keyword})\W{{0,6}}?(\d{{1,20}})"
+        m2 = re.search(pattern_context, text_low, flags=re.IGNORECASE)
+        if m2:
+            num = m2.group(1) or m2.group(2)
             if num:
-                found[pname] = num
-    """ # 3)
+                if pname == "id_finanziamento":
+                    found[pname] = re.sub(r'\D+', '', num).zfill(8)
+                else:
+                    found[pname] = re.sub(r'\D+', '', num)
+    # 3)
     for pname in api_params:
         if pname not in found:
-            m = re.search(r"(\d{3,20})", text)
-            if m:
-                found[pname] = m.group(1) """
+            m3 = re.search(r"(\d{1,20})", text_low)
+            if m3:
+                if pname == "id_finanziamento":
+                    found[pname] = m3.group(1).zfill(8)
+                else:
+                    found[pname] = m3.group(1)
     return found
 
 # --- Funzione per (ri)allenare il modello NER su esempi etichettati
@@ -362,6 +400,7 @@ def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyw
         """ # Controllo lingua
         if detect(testo_input) != "it":
             return {"codice_risposta": "KO", "risposta_app": "Per favore fornisci il testo in italiano."} """
+        testo_originale = testo_input
         testo_input = normalizza_testo(testo_input)
 
         # Embedding del testo utente
@@ -412,7 +451,8 @@ def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyw
             }
 
             if api.get("parametri"):
-                estratti = extract_params_from_text(testo_input, api["parametri"])
+                print("testo originale per estrazione parametri:", testo_originale)
+                estratti = extract_params_from_text(testo_originale, api["parametri"])
                 mancanti = [p for p in api["parametri"].keys() if p not in estratti or not estratti[p]]
                 if len(mancanti) == 0:
                     response["parametri"] = estratti
