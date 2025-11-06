@@ -317,7 +317,7 @@ def normalizza_testo(testo: str) -> str:
     testo = re.sub(r"http\S+|www\S+|https\S+", " ", testo)  # URL
     testo = re.sub(r"@\w+", " ", testo)                     # menzioni
     testo = re.sub(r"#\w+", " ", testo)                     # hashtag
-    testo = re.sub(r"[^a-zA-ZàèéìòóùÀÈÉÌÒÓÙ\s]", " ", testo)  # rimuove simboli, emoji, numeri
+    testo = re.sub(r"[^\w\sàèéìòóùÀÈÉÌÒÓÙ]", " ", testo)  # rimuove simboli, emoji, numeri
     testo = re.sub(r"\s+", " ", testo).strip()              # spazi multipli
 
     testo = unidecode(testo)  # converte tutti gli accenti a forme canoniche ASCII
