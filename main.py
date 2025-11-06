@@ -26,6 +26,10 @@ import spacy
 from spacy.pipeline import EntityRuler 
 # Libreria per mescolare i dati di addestramento
 import random 
+# Libreria per la normalizzazione dei caratteri Unicode
+from unidecode import unidecode
+# Libreria per il download e l'uso di modelli NLP (Stanza)
+import stanza
 """ # Libreria per connettersi a PostgreSQL
 import psycopg2 """
 
@@ -34,6 +38,9 @@ app = FastAPI()
 
 # --- Modello sentence-transformers
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+
+#token = 'YOUR_HUGGING'
+#model = SentenceTransformer('google/embeddinggemma-300m', use_auth_token=token)
 
 """ # Funzione per caricare le API da un database PostgreSQL
 def carica_api_da_db():
@@ -60,7 +67,7 @@ api_catalog = [
         "descrizione": "Mostra la home page dell'applicazione",
         "parametri": {},
         "path": "home",
-        "keywords": ["home", "inizio", "pagina principale", "dashboard", "schermata iniziale"]
+        "keywords": ["home", "inizio", "pagina principale", "schermata iniziale"]
     },
     {
         "descrizione": "Crea un nuovo finanziamento",
@@ -111,7 +118,6 @@ api_catalog = [
         "keywords": ["eroga", "erogazione", "paga", "rilascia", "disponi", "invio"]
     }
 ]
-
 
 #  --- Modello spaCy per l'italiano ed EntityRuler
 try:
@@ -292,8 +298,60 @@ class Richiesta(BaseModel):
     richiesta_utente: str
     id_finanziamento: str
 
+stanza.download('it')  # eseguila una sola volta
+nlp_stanza = stanza.Pipeline('it', processors='tokenize,mwt,pos,lemma', use_gpu=False)
+
+def normalizza_testo(testo: str) -> str:
+    """
+    Pipeline completa di normalizzazione di un testo in italiano.
+    Passaggi:
+    1. Pulizia (rimozione di URL, emoji, punteggiatura, numeri, ecc.)
+    2. Normalizzazione accenti
+    3. Tokenizzazione
+    4. Lemmatizzazione
+    5. Rimozione stopwords
+    6. Lowercase
+    """
+    print(f"Testo originale: {testo}")
+
+    testo = re.sub(r"http\S+|www\S+|https\S+", " ", testo)  # URL
+    testo = re.sub(r"@\w+", " ", testo)                     # menzioni
+    testo = re.sub(r"#\w+", " ", testo)                     # hashtag
+    testo = re.sub(r"[^a-zA-ZàèéìòóùÀÈÉÌÒÓÙ\s]", " ", testo)  # rimuove simboli, emoji, numeri
+    testo = re.sub(r"\s+", " ", testo).strip()              # spazi multipli
+
+    testo = unidecode(testo)  # converte tutti gli accenti a forme canoniche ASCII
+
+    doc = nlp_stanza(testo)
+    lemmi = [word.lemma.lower() for sent in doc.sentences for word in sent.words]
+
+    stopwords_it = set([
+        "il", "lo", "la", "i", "gli", "le", "un", "una", "uno",
+        "di", "a", "da", "in", "su", "per", "con", "come", "tra", "fra",
+        "del", "della", "dell", "dei", "degli", "delle",
+        "al", "allo", "alla", "ai", "agli", "alle",
+        "dal", "dallo", "dalla", "dai", "dagli", "dalle",
+        "nel", "nello", "nella", "nei", "negli", "nelle",
+        "sul", "sullo", "sulla", "sui", "sugli", "sulle",
+        "e", "ed", "o", "od", "ma", "anche", "se", "che", "quando", "dove", "come", "cui",
+        "non", "piu", "meno", "molto", "tanto", "troppo", "tutti", "tutto",
+        "questo", "quello", "questa", "quella", "questi", "quelle",
+        "io", "tu", "lui", "lei", "noi", "voi", "loro",
+        "mi", "ti", "si", "ci", "vi", "ne", "gli", "le", "li",
+        "sono", "era", "stato", "stare", "essere", "avere",
+        "ho", "hai", "ha", "abbiamo", "avete", "hanno",
+        "sia", "siano", "sarà", "saranno", "può", "puoi", "può", "posso", "possono"
+    ])
+    tokens = [lemma for lemma in lemmi if lemma not in stopwords_it and lemma.strip() != ""]
+
+    testo_normalizzato = " ".join(tokens)
+    testo_normalizzato = testo_normalizzato.lower()
+    print(f"Testo normalizzato: {testo_normalizzato}")
+
+    return testo_normalizzato
+
 # --- Funzione principale che cerca l'API e, se necessario, estrae parametri
-def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyword=0.1, peso_embedding=0.9) -> Dict[str, Any]:
+def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyword=0.3, peso_embedding=0.9) -> Dict[str, Any]:
     """
     Restituisce l'API più probabile in base a:
     1) keyword specifiche nel testo
@@ -301,36 +359,38 @@ def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyw
     3) estrazione parametri richiesti
     """
     try:
-        testo_lower = testo_input.lower()
-
-        print(testo_lower)
-
         """ # Controllo lingua
         if detect(testo_input) != "it":
             return {"codice_risposta": "KO", "risposta_app": "Per favore fornisci il testo in italiano."} """
+        testo_input = normalizza_testo(testo_input)
 
         # Embedding del testo utente
         embedding_input = model.encode([testo_input])
 
         migliori_match = {"path": None, "score": 0.0, "api": None, "match_type": None}
 
-        for api in api_catalog:
+        for api in api_catalog:  
             keywords = api.get("keywords", [])
             # punteggio keyword
             if keywords:
-                kw_score = 1.0 if any(kw.lower() in testo_lower for kw in keywords) else 0.0 # presenza/assenza
-                # kw_score = sum(1 for kw in keywords if kw.lower() in testo_lower) / len(keywords) # frazione di keyword trovate
-                kw_bonus = max((len(kw) / 20 for kw in keywords if kw.lower() in testo_lower), default=0) # bonus per keyword più lunghe
-                kw_score += kw_bonus
+                kw_score = 1.0 if any(kw.lower() in testo_input for kw in keywords) else 0.0 # presenza/assenza
+                # kw_score = sum(1 for kw in keywords if kw.lower() in testo_input) / len(keywords) # frazione di keyword trovate
+                # kw_bonus = max((len(kw) / 20 for kw in keywords if kw.lower() in testo_input), default=0) # bonus per keyword più lunghe
+                # kw_score += kw_bonus
             else:
                 kw_score = 0.0
 
             # punteggio embedding
-            embedding_descrizione = model.encode([api["descrizione"]])
+            embedding_descrizione = normalizza_testo(api["descrizione"])
+            embedding_descrizione = model.encode([embedding_descrizione])
             emb_score = cosine_similarity(embedding_input, embedding_descrizione)[0][0]
 
             # punteggio combinato
             score_combinato = peso_keyword * kw_score + peso_embedding * emb_score
+
+            print(f"  kw_score: {kw_score}")
+            print(f"  emb_score: {emb_score}")
+            print(f"  score_combinato: {score_combinato}")
 
             if score_combinato > migliori_match["score"]:
                 match_type = "keyword+embedding" if kw_score > 0 else "embedding"
