@@ -118,6 +118,7 @@ api_catalog = [
         "parametri": {"id_finanziamento": "string"},
         "path": "erogazione-finanziamento",
         "keywords": ["eroga", "erogazione", "erogare"]
+        #esempio: "erogazione 12345" non viene preso a causa dell'embedding troppo basso
     }
 ]
 
@@ -451,7 +452,6 @@ def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyw
             }
 
             if api.get("parametri"):
-                print("testo originale per estrazione parametri:", testo_originale)
                 estratti = extract_params_from_text(testo_originale, api["parametri"])
                 mancanti = [p for p in api["parametri"].keys() if p not in estratti or not estratti[p]]
                 if len(mancanti) == 0:
@@ -459,8 +459,10 @@ def get_api(testo_input: str, id_finanziamento, soglia_similarita=0.5, peso_keyw
                 else:
                     #TODO: gestione specifica per id_finanziamento passato separatamente
                     if "id_finanziamento" in mancanti and id_finanziamento:
+                        print("Usando id_finanziamento passato separatamente.")
                         estratti["id_finanziamento"] = id_finanziamento
                         mancanti.remove("id_finanziamento")
+                        response["parametri"] = estratti
                     else:
                         response["parametri_parziali"] = estratti
                         response["mancanti"] = mancanti
