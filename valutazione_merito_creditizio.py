@@ -64,7 +64,7 @@ def preprocess_input(input_data):
     # 0 I fondi vengono accreditati direttamente al richiedente (prestito personale classico)
     # 1 I fondi vengono inviati direttamente ai creditori per estinguere debiti esistenti (tipico nei debt consolidation loan)
     from joblib import load
-    scaler = load('../scaler.pkl')
+    scaler = load('scaler.pkl')
     input_scaled  = scaler.transform(input_df)
     input_scaled_df = pd.DataFrame(input_scaled , columns=input_df.columns)
     return input_scaled, input_scaled_df, features_selected
