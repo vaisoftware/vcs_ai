@@ -41,7 +41,7 @@ def get_api(testo_input: str, id_finanziamento: str):
             emb_score = cosine_similarity(embedding_input, embedding_descrizione)[0][0]
 
             # punteggio combinato
-            score_combinato = peso_keyword * kw_score + peso_embedding * emb_score
+            score_combinato = PESO_KEYWORD * kw_score + PESO_EMBEDDING * emb_score
 
             print(f"  kw_score: {kw_score}")
             print(f"  emb_score: {emb_score}")
@@ -57,7 +57,7 @@ def get_api(testo_input: str, id_finanziamento: str):
                 }
 
         # Se superiamo la soglia, estraiamo parametri
-        if migliori_match["score"] >= soglia_similarita:
+        if migliori_match["score"] >= SOGLIA_SIM:
             api = migliori_match["api"]
             response = {
                 "codice_risposta": "OK",
