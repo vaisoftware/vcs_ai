@@ -1,0 +1,19 @@
+Codice scritto seguendo l'articolo: https://medium.com/@shivarama/layoutlmv3-from-zero-to-hero-part-1-85d05818eec4
+Anche qui le annotaizoni contengono box e token (testo nel box), layout lm esegue l'OCR in automatico?? bho amgari si ma nelle annotazioni deve comuqnue essere presente anche il testo?
+
+infatti in questo link viene usato un codice per estratte il testo dall'imamgine, dando in input il JSON con i box (object detection) e l'immagine, così ricostruisco il JSON con il testo estratto in corrispondneza dei vari box.
+Forse EasyOCR ci aiuta https://github.com/JaidedAI/EasyOCR
+
+I passi da fare (PULITI) sarebbero  questi:
+1. Raccogliere un buon numero di estratti conto (200 + pdf) di banche diverse
+2. Creare il nostro dataset personale: (vedere se posso integrare EasyOCR o altre techinche più efficienti o se posso risparmiarmi qualche passaggio)
+    2.1 Etichettare le immmagini con object detection di label_studio (crea dei bounding box) 
+    2.2 Esportare il file JSON (che include le coordinate dei bounding box nell'immagine, ma non il testo al loro interno)
+    2.3 Scrivere uno script (provare quello porposto nel link), che estragga il testo da una box e lo assoscia a quella box 
+    2.4 Sovrascrivere il JSON o crearne uno nuovo che contenga sia testo che bounding box
+3. Ottenuto il dataset addestro il modello "LayoutLMv3" 
+4. Effettuo i test (non so ancora se devo integrare NER a parte o è compreso nel modello LayoutLMv3)
+
+In ogni caso: sia che serva o meno, vale la pena utilizzare/addestrare un modello-NER, che poi magari va integrato in seguito.
+Altra cosa: Quando faccio le annotation su testo semplice ho una dimensione, se lo faccio su uan pagina ho 2 dimensioni, dipende da come lo estraggo.
+
